@@ -8,6 +8,8 @@ from flask import Flask
 from flask.globals import request
 from flask.json import jsonify
 
+# import requests
+# from urllib.parse import urlparse
 
 class Blockchain(object):
    difficulty_target = "0000"
@@ -38,7 +40,7 @@ class Blockchain(object):
 
       return content_hash[:len(self.difficulty_target)] == self.difficulty_target
 
-   def append_block(self, hash_of_previous_block, nonce):
+   def append_block(self, nonce, hash_of_previous_block):
       block = {
          'index': len(self.chains),
          'timestamp': time(),
@@ -49,7 +51,6 @@ class Blockchain(object):
 
       self.current_transactions = []
       self.chains.append(block)
-
       return block
 
    def add_transaction(self, sender, recipient, amount):
@@ -69,13 +70,8 @@ node_identifier = str(uuid4()).replace('-', "")
 
 blockchain = Blockchain()
 
-#routes
-@app.route("/")
-def main():
-    return "<p>Hello, World!</p>"
-
-@app.route('/blockchains')
-def blockchains():
+@app.route('/blocks')
+def blocks():
    response = {
       'chains': blockchain.chains,
       'length': len(blockchain.chains)
@@ -96,29 +92,29 @@ def mine():
    block = blockchain.append_block(nonce, last_block_hash)
 
    response = {
-      'message': 'Added new mine',
+      'message': 'Block baru telah ditambahkan (mined)',
       'index': block['index'],
       'hash_of_previous_block': block['hash_of_previous_block'],
-      'nonce': block['block'],
+      'nonce': block['nonce'],
       'transaction': block['transaction']
    }
 
    return jsonify(response), 200
 
-# @app.route('transactions', methods=['POST'])
-# def transactions():
-#    values = request.get_json()
-#    required_fields = ['sender', 'recipient', 'amount']
-#    if not all(k in values for k in required_fields):
-#       return 'Missing fields', 400
+@app.route('/transactions', methods=['POST'])
+def transactions():
+   values = request.get_json()
+   required_fields = ['sender', 'recipient', 'amount']
+   if not all(k in values for k in required_fields):
+      return jsonify({ 'message': 'Missing fields' }), 400
 
-#    index = blockchain.add_transaction(
-#       values['sender'],
-#       values['recipient'],
-#       values['amount']
-#    )
+   index = blockchain.add_transaction(
+      values['sender'],
+      values['recipient'],
+      values['amount']
+   )
 
-#    response = {
-#       'message': f'Added new transaction {index}'
-#    }
-#    return jsonify(response), 201
+   response = {
+      'message': f'Added new transaction {index}'
+   }
+   return jsonify(response), 201
