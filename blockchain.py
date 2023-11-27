@@ -8,8 +8,8 @@ from flask import Flask
 from flask.globals import request
 from flask.json import jsonify
 
-# import requests
-# from urllib.parse import urlparse
+import requests
+from urllib.parse import urlparse
 
 class Blockchain(object):
    difficulty_target = "0000"
@@ -19,6 +19,7 @@ class Blockchain(object):
       return hashlib.sha256(block_encoded).hexdigest()
 
    def __init__(self):
+      self.nodes = set()
       self.chains = []
       self.current_transactions = []
       genesis_hash = self.hash_block("genesis_block")
@@ -27,6 +28,55 @@ class Blockchain(object):
          hash_of_previous_block = genesis_hash,
          nonce = self.proof_of_work(0, genesis_hash, [])
       )
+
+   def add_node(self, adddress):
+      parse_url = urlparse(adddress)
+      self.nodes.add(parse_url.netloc)
+      print(parse_url.netloc)
+
+   def valid_chain(self, chains):
+      last_block = chains[0]
+      current_index = 1
+
+      while current_index < len(chains):
+         block = chains[current_index]
+
+         if block['hash_of_previous_block'] != self.hash_block(last_block):
+            return False
+
+         if not self.valid_proof(
+            current_index,
+            block['hash_of_previous_block'],
+            block['transaction'],
+            block['transaction'],
+            block['nonce'],
+         ):
+            return False
+
+         last_block = block
+         current_index += 1
+
+      return True
+
+   def update_blockchain(self):
+      neighbours = self.nodes
+      new_chains = None
+      max_length = len(self.chains)
+
+      for node in neighbours:
+         response = requests.get(f'http://{node}/blockchain')
+         if response.status_code == 200:
+            length = response.json()['length']
+            chains = response.json()['chains']
+
+            if length > max_length and self.valid_chain(chains):
+               max_length = length
+               new_chains = chains
+
+            if new_chains:
+               self.chains = new_chains
+               return True
+      return False
 
    def proof_of_work(self, index, hash_of_previous_block, transactions):
       nonce = 0
@@ -44,7 +94,7 @@ class Blockchain(object):
       block = {
          'index': len(self.chains),
          'timestamp': time(),
-         'transaction': self.current_transactions,
+         'transactions': self.current_transactions,
          'nonce': nonce,
          'hash_of_previous_block': hash_of_previous_block
       }
@@ -96,7 +146,7 @@ def mine():
       'index': block['index'],
       'hash_of_previous_block': block['hash_of_previous_block'],
       'nonce': block['nonce'],
-      'transaction': block['transaction']
+      'transactions': block['transactions']
    }
 
    return jsonify(response), 200
